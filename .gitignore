@@ -1,0 +1,15 @@
+# Models (trop lourds pour GitHub)
+*.pkl
+*.joblib
+*.h5
+*.hdf5
+*.keras
+
+# Data (trop lourds)
+data/*.csv
+data/*.zip
+!data/.gitkeep
+
+# Environment
+venv/
+env/
