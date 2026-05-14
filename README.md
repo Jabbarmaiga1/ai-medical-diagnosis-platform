@@ -9,7 +9,7 @@
 > ⚠️ **AVERTISSEMENT** : Projet de démonstration éducatif. Ne pas utiliser pour des diagnostics médicaux réels.
 
 ## 🎯 En bref
-
+ 
 Plateforme IA qui détecte **6 pathologies** à partir de données cliniques et radiologiques.
 
 | Pathologie | AUC-ROC | Accuracy |
