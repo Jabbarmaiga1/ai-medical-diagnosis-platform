@@ -4,12 +4,8 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
-import sys
 from pathlib import Path
 import joblib
-import tensorflow as tf
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 st.set_page_config(page_title="Medical Diagnosis AI", page_icon="🏥", layout="wide")
 
@@ -54,7 +50,6 @@ def load_css() -> str:
 
 @st.cache_resource
 def load_models():
-    """Load all ML models."""
     models = {}
     scalers = {}
 
@@ -84,16 +79,19 @@ def load_models():
         if p.exists():
             scalers[name] = joblib.load(p)
 
-    # Load CNN model for pneumonia
-    cnn_path = Path("models/pneumonia_cnn_model.h5")
-    cnn_model = None
-    if cnn_path.exists():
-        try:
-            cnn_model = tf.keras.models.load_model(cnn_path)
-        except Exception as e:
-            st.warning(f"CNN model not loaded: {e}")
+    return models, scalers
 
-    return models, scalers, cnn_model
+
+@st.cache_resource
+def load_cnn_model():
+    try:
+        import tensorflow as tf
+        cnn_path = Path("models/pneumonia_cnn_model.h5")
+        if cnn_path.exists():
+            return tf.keras.models.load_model(cnn_path)
+    except ImportError:
+        pass
+    return None
 
 
 def display_result(risk_level: str, probability: float):
@@ -234,37 +232,42 @@ def sepsis_form(models, scalers):
 
 
 def pneumonia_form(cnn_model):
-    st.markdown("### Radiographie thoracique")
-    st.info("Téléchargez une radio pulmonaire pour détection de pneumonie")
-
-    uploaded_file = st.file_uploader("Choisir une image", type=["jpg", "jpeg", "png"])
-
-    if uploaded_file is not None and cnn_model is not None:
-        from PIL import Image
-        img = Image.open(uploaded_file).convert("RGB").resize((224, 224))
-        st.image(img, caption="Radiographie téléchargée", width=300)
-
-        img_array = np.array(img) / 255.0
-        img_array = np.expand_dims(img_array, axis=0)
-
-        with st.spinner("Analyse en cours..."):
-            proba = float(cnn_model.predict(img_array)[0][0])
-
-        if proba > 0.5:
-            st.markdown(
-                f'<div class="risk-high"><h2>⚠️ PNEUMONIE DÉTECTÉE</h2>'
-                f'<p style="font-size: 24px;">Probabilité: {proba*100:.1f}%</p>'
-                f'<p>Consultation médicale recommandée</p></div>',
-                unsafe_allow_html=True,
-            )
-        else:
-            st.markdown(
-                f'<div class="risk-low"><h2>✅ RADIOGRAPHIE NORMALE</h2>'
-                f'<p style="font-size: 24px;">Probabilité: {(1-proba)*100:.1f}%</p></div>',
-                unsafe_allow_html=True,
-            )
-    elif uploaded_file is not None and cnn_model is None:
-        st.error("Modèle Pneumonie non disponible")
+    st.markdown("### Radiographie thoracique - Pneumonie")
+    
+    if cnn_model is None:
+        st.error("❌ Modèle Pneumonie non disponible. TensorFlow n'est pas installé ou le modèle est manquant.")
+        st.info("Pour l'activer: `pip install tensorflow` puis `python src/train_pneumonia_cnn.py`")
+        return
+    
+    uploaded_file = st.file_uploader("Téléchargez une radiographie", type=["jpg", "jpeg", "png"])
+    
+    if uploaded_file is not None:
+        try:
+            from PIL import Image
+            img = Image.open(uploaded_file).convert("RGB").resize((224, 224))
+            st.image(img, caption="Radiographie téléchargée", width=300)
+            
+            img_array = np.array(img) / 255.0
+            img_array = np.expand_dims(img_array, axis=0)
+            
+            with st.spinner("Analyse en cours..."):
+                proba = float(cnn_model.predict(img_array)[0][0])
+            
+            if proba > 0.5:
+                st.markdown(
+                    f'<div class="risk-high"><h2>⚠️ PNEUMONIE DÉTECTÉE</h2>'
+                    f'<p style="font-size: 24px;">Probabilité: {proba*100:.1f}%</p>'
+                    f'<p>Consultation médicale recommandée</p></div>',
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown(
+                    f'<div class="risk-low"><h2>✅ RADIOGRAPHIE NORMALE</h2>'
+                    f'<p style="font-size: 24px;">Probabilité: {(1-proba)*100:.1f}%</p></div>',
+                    unsafe_allow_html=True,
+                )
+        except Exception as e:
+            st.error(f"Erreur lors de l'analyse: {e}")
 
 
 def performance_page():
@@ -316,7 +319,8 @@ def main():
         page = st.radio("Navigation", ["🎯 Diagnostic", "📊 Performance", "ℹ️ À Propos"])
         st.info("⚠️ Outil d'aide à la décision - Consultez toujours un médecin")
 
-    models, scalers, cnn_model = load_models()
+    models, scalers = load_models()
+    cnn_model = load_cnn_model()
 
     if page == "🎯 Diagnostic":
         st.markdown("## 🎯 Diagnostic Assisté par IA")
